@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Мій Паспорт</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #0b0f17; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 40px; min-height: 100vh; margin: 0; }
+        .controls { margin-bottom: 30px; display: flex; gap: 15px; z-index: 100; }
+        .btn { padding: 14px 28px; font-size: 16px; font-weight: bold; color: white; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
+        .btn-flip { background-color: #007bff; }
+        .btn-scan { background-color: #28a745; }
+        .passport-container { width: 400px; height: 550px; position: relative; background-color: #1a1d24; border-radius: 16px; box-shadow: 0 15px 35px rgba(0,0,0,0.6); overflow: hidden; z-index: 10; }
+        .passport-page { width: 100%; height: 100%; display: none; }
+        .passport-page.active { display: block; }
+        .passport-page img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; user-select: none; }
+        #page-2 { cursor: crosshair; }
+        .laser-line { position: absolute; top: 0; left: 0; width: 100%; height: 8px; background: linear-gradient(to bottom, rgba(0,255,0,0), #00ff44, rgba(0,255,0,0)); box-shadow: 0 0 15px #00ff44; z-index: 20; display: none; }
+        .scanning .laser-line { display: block; animation: laser-move 1s ease-in-out infinite; }
+        @keyframes laser-move { 0% { top: 0%; } 50% { top: 100%; } 100% { top: 0%; } }
+        .matrix-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(6, 10, 15, 0.95); z-index: 21; color: #00ff44; font-family: monospace; font-size: 14px; padding: 20px; box-sizing: border-box; overflow: hidden; display: none; word-break: break-all; }
+        .success-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(40, 167, 69, 0.95); z-index: 22; display: flex; flex-direction: column; align-items: center; justify-content: center; display: none; color: white; font-weight: bold; font-size: 20px; }
+        .checkmark-svg { width: 90px; height: 90px; stroke: white; stroke-width: 4; fill: none; margin-bottom: 15px; }
+        .animate-check { animation: draw-check 0.4s ease-in-out forwards; stroke-dasharray: 100; stroke-dashoffset: 100; }
+        @keyframes draw-check { to { stroke-dashoffset: 0; } }
+        .error-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(220, 53, 69, 0.95); z-index: 22; display: flex; flex-direction: column; align-items: center; justify-content: center; display: none; color: white; font-weight: bold; font-size: 18px; text-align: center; padding: 20px; box-sizing: border-box; }
+        .error-icon { font-size: 70px; margin-bottom: 15px; animation: blink 0.5s linear infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .stamp { position: absolute; width: 85px; height: 85px; border: 4px double rgba(230, 40, 60, 0.85); border-radius: 50%; color: rgba(230, 40, 60, 0.85); text-align: center; font-size: 10px; font-weight: bold; display: flex; flex-direction: column; align-items: center; justify-content: center; transform: translate(-50%, -50%) rotate(-12deg); pointer-events: none; user-select: none; background-color: rgba(230, 40, 60, 0.03); }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <button class="btn btn-flip" id="flip-btn">Перевернути сторінку</button>
+        <button class="btn btn-scan" id="scan-btn">Сканувати в базі</button>
+    </div>
+
+    <div class="passport-container" id="passport-box">
+        <div class="laser-line"></div>
+        <div class="matrix-screen" id="matrix-box"></div>
+        
+        <div class="success-screen" id="success-box">
+            <svg viewBox="0 0 50 50" class="checkmark-svg"><path id="check-path" d="M12 25 l8 8 l18 -18"></path></svg>
+            ДОСТУП ДОЗВОЛЕНО
+        </div>
+
+        <div class="error-screen" id="error-box">
+            <div class="error-icon">⚠️</div>
+            УВАГА:<br>ОБЛИЧЧЯ В ПАСПОРТІ ВІДСУТНЄ!
+        </div>
+
+        <div class="passport-page active" id="page-1">
+            <img src="photo.jpg" alt="Сторінка 1">
+        </div>
+        
+        <div class="passport-page" id="page-2">
+            <img src="photo2.jpg" alt="Сторінка 2">
+        </div>
+    </div>
+
+    <script>
+        let activePage = 1;
+        let matrixInterval;
+
+        // Кнопка Перевороту
+        document.getElementById('flip-btn').addEventListener('click', function() {
+            document.getElementById('page-1').classList.remove('active');
+            document.getElementById('page-2').classList.remove('active');
+            if (activePage === 1) {
+                document.getElementById('page-2').classList.add('active');
+                activePage = 2;
+            } else {
+                document.getElementById('page-1').classList.add('active');
+                activePage = 1;
+            }
+        });
+
+        // Клік для штампів на Сторінці 2
+        document.getElementById('page-2').addEventListener('click', function(event) {
+            const page = document.getElementById('page-2');
+            const rect = page.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            const stamp = document.createElement('div');
+            stamp.classList.add('stamp');
+            stamp.style.left = x + 'px';
+            stamp.style.top = y + 'px';
+            stamp.innerHTML = "<span>ДЛЯ<br>ПАСПОРТІВ</span><div style='font-size:7px; border-top:1px solid red; margin-top:2px;'>УКРАЇНА</div>";
+            page.appendChild(stamp);
+        });
+
+        // Кнопка Сканування
+        document.getElementById('scan-btn').addEventListener('click', function() {
+            const box = document.getElementById('passport-box');
+            const matrix = document.getElementById('matrix-box');
+            const success = document.getElementById('success-box');
+            const errorBox = document.getElementById('error-box');
+            const checkPath = document.getElementById('check-path');
+            
+            box.classList.add('scanning');
+
+            setTimeout(() => {
+                box.classList.remove('scanning');
+                matrix.style.display = 'block';
+                matrix.innerHTML = '';
+                
+                matrixInterval = setInterval(() => {
+                    let line = '';
+                    for(let i=0; i<30; i++) { line += Math.round(Math.random()) + ' '; }
+                    matrix.innerHTML += line + '<br>';
+                    matrix.scrollTop = matrix.scrollHeight;
+                }, 100);
+
+                setTimeout(() => {
+                    clearInterval(matrixInterval);
+                    matrix.style.display = 'none';
+
+                    if (Math.random() < 0.5) {
+                        success.style.display = 'flex';
+                        checkPath.classList.add('animate-check');
+                        setTimeout(() => {
+                            success.style.display = 'none';
+                            checkPath.classList.remove('animate-check');
+                        }, 1500);
+                    } else {
+                        errorBox.style.display = 'flex';
+                        setTimeout(() => {
+                            errorBox.style.display = 'none';
+                        }, 2500);
+                    }
+                }, 4000);
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
